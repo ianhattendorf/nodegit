@@ -8,8 +8,9 @@ describe("Tree", function() {
   var RepoUtils = require("../utils/repository_setup");
 
   var repoPath = local("../repos/tree");
-  var existingPath = local("../repos/workdir");
-  var oid = "5716e9757886eaf38d51c86b192258c960d9cfea";
+  var existingPath = local("../../../linux");
+  // var oid = "5716e9757886eaf38d51c86b192258c960d9cfea";
+  var oid = "37862e8360dfef539d054c21f3b3cdd3f6728dbd";
 
   beforeEach(function() {
     var test = this;
@@ -113,12 +114,18 @@ describe("Tree", function() {
       });
   });
 
-  it("get all paths from a tree", async function () {
+  it.only("get all paths from a tree", async function () {
     const tree = await this.commit.getTree();
+    console.time("getAllFilepaths");
     const paths = await tree.getAllFilepaths();
-    assert.equal(paths.length, 512);
-    assert.equal(paths[0], ".gitignore");
-    assert.equal(paths[511], "wscript");
+    console.timeEnd("getAllFilepaths");
+    assert.equal(paths.length, 72178);
+    assert.equal(paths[0], ".clang-format");
+    assert.equal(paths[paths.length - 1], "virt/lib/irqbypass.c");
   });
 
 });
+// std::string 121 + 133 + 122 + 123 + 116 = 615
+// custom buffer 150 + 121 + 114 + 215 + 144 = 744
+// custom buffer 159 + 115 + 136 + 120 + 155 = 685
+// std::string 115 + 191 + 124 + 121 + 113 = 664

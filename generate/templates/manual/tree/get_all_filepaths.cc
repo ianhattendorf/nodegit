@@ -1,65 +1,25 @@
 
 namespace TreeFilepathsHelpers {
 
-struct path_buffer {
-  char *path {nullptr};
-  size_t size {0};
-  size_t allocated {0};
-
-  path_buffer(size_t alloc) {
-    allocated = alloc;
-    path = (char *)malloc(allocated);
-    path[0] = '\0';
-    size = 0;
-  }
-
-  ~path_buffer() {
-    free(path);
-  }
-};
-
-inline int concat_path(path_buffer *buffer, const char *path) {
-  size_t path_len = strlen(path);
-  if (buffer->size + path_len + 2 > buffer->allocated) {
-    buffer->allocated = buffer->allocated * 2;
-    char *tmp = (char *)realloc(buffer->path, buffer->allocated);
-    if (tmp == NULL) {
-      return -1;
-    }
-    buffer->path = tmp;
-  }
-  memcpy(buffer->path + buffer->size, path, path_len);
-  buffer->size += path_len + 1;
-  buffer->path[buffer->size - 1] = '/';
-  buffer->path[buffer->size] = '\0';
-  return 0;
-}
-
-inline void srink_path(path_buffer *buffer, size_t size) {
-  buffer->size = size;
-  buffer->path[buffer->size] = '\0';
-}
-
-int iterateTreePaths(git_repository *repo, git_tree *tree, std::vector<std::string> *paths, path_buffer *buffer) {
+int iterateTreePaths(git_repository *repo, git_tree *tree, std::vector<std::string> *paths, std::string *buffer) {
   size_t size = git_tree_entrycount(tree);
   for (size_t i = 0; i < size; i++) {
     const git_tree_entry *entry = git_tree_entry_byindex(tree, i);
     const git_filemode_t filemode = git_tree_entry_filemode(entry);
     if (filemode == GIT_FILEMODE_BLOB || filemode == GIT_FILEMODE_BLOB_EXECUTABLE) {
-      paths->push_back(std::string(buffer->path, buffer->size) + std::string(git_tree_entry_name(entry)));
+      paths->push_back(*buffer + std::string(git_tree_entry_name(entry)));
     }
     else if (filemode == GIT_FILEMODE_TREE) {
       git_tree *subtree;
       int error = git_tree_lookup(&subtree, repo, git_tree_entry_id(entry));
       if (error == GIT_OK) {
-        size_t size = buffer->size;
+        size_t size = buffer->size();
         /* append the next entry to the path */
-        if (concat_path(buffer, git_tree_entry_name(entry)) < 0) {
-          return -1;
-        }
+        buffer->append(git_tree_entry_name(entry));
+        buffer->append("/");
         error = iterateTreePaths(repo, subtree, paths, buffer);
         git_tree_free(subtree);
-        srink_path(buffer, size);
+        buffer->resize(size);
       }
 
       if (error < 0 ) {
@@ -104,7 +64,8 @@ nodegit::LockMaster GitTree::GetAllFilepathsWorker::AcquireLocks() {
 
 void GitTree::GetAllFilepathsWorker::Execute()
 {
-  TreeFilepathsHelpers::path_buffer buffer(4096);
+  std::string buffer;
+  buffer.reserve(4096);
   baton->error_code = TreeFilepathsHelpers::iterateTreePaths(baton->repo, baton->tree, baton->out, &buffer);
   if (baton->error_code != GIT_OK && git_error_last() != NULL) {
     baton->error = git_error_dup(git_error_last());
